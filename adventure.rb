@@ -272,6 +272,7 @@ module Adventure
 
 		rtrn = []
 		params.each do |k, v|
+			next unless k
 			rtrn << id.send(k.to_sym, v)
 		end
 		rtrn.compact!
