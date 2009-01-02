@@ -29,7 +29,7 @@ show_directions
 	direction :east => ref(:river)
 	direction :north => ref(:hill)
 	item :food, 'Some food.'
-	item :a_knife, 'A sharf knife.', [:knife]
+	item :a_knife, 'A sharp knife.', [:knife]
 }
 
 # This is the most complicated command.
