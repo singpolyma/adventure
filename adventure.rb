@@ -17,6 +17,7 @@ module Adventure
 		attr_reader :name
 
 		def [](k)
+			k = k[0] if k.is_a?Array
 			@directions[k] || self
 		end
 
@@ -111,7 +112,7 @@ module Adventure
 				when Symbol
 					old_room = @current_room
 					@current_room = @current_room[room]
-					return "No way to go #{room}." if old_room == @current_room
+					return "No way to go #{room}." if old_room == @current_room || (old_room.respond_to?(:dref) && old_room.dref == @current_room.dref)
 				when Adventure::Room
 					@current_room = room
 				else
