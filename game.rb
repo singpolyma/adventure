@@ -6,31 +6,30 @@
 # There are some default commands: go, get, drop
 require 'adventure'
 
+# This is for the ref(:id) syntax
+require 'extern'
+
 # This tells the DSL to print the different ways a player can go.
 show_directions
 
 # Make us a river! There's a pebble there, you can call it a pebble or just pebble.
-river = room('A river', 'A peaceful river.') {
+@river = room('A river', 'A peaceful river.') {
 	item :a_pebble, 'A small, smooth stone.', [:pebble]
+	direction :north => ref(:hill)
+	direction :west => ref(:lake)
 }
 
 # Make us a hill! The only thing you can do is go south to the river.
-hill = room('A hill', 'On top of a hill.') {
-	direction :south => river
+@hill = room('A hill', 'On top of a hill.') {
+	direction :south => ref(:river)
 }
 
 # Make us a lake! There's food and a knife here... not too exciting.
-lake = room('The lake', 'Isn\'t this lake awesome!') {
-	direction :east => river
-	direction :north => hill
+@lake = room('The lake', 'Isn\'t this lake awesome!') {
+	direction :east => ref(:river)
+	direction :north => ref(:hill)
 	item :food, 'Some food.'
 	item :a_knife, 'A sharf knife.', [:knife]
-}
-
-# Need to reopen the river to add the ability to go north and west.
-room(river) {
-	direction :north => hill
-	direction :west => lake
 }
 
 # This is the most complicated command.
@@ -70,7 +69,7 @@ command(:help) {
 }
 
 # Start the player at the river.
-player :start => river
+player :start => ref(:river)
 
 # Game interface. Just do the traditional text-based interface.
 
@@ -83,6 +82,7 @@ catch :quit do
 		verb, direct_object, indirect_objects = parse gets
 		puts
 		throw :quit if verb == :quit
+		throw :quit if verb == :exit
 		puts player(verb => direct_object)
 	end
 end
