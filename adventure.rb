@@ -7,14 +7,16 @@ module Adventure
 			@@show_directions = true
 		end
 
-		def initialize(name='A room', description='')
-			@name = name
+		def initialize(name, description='')
+			@name = Adventure::resolve(name)
 			@description = description
 			@directions = {}
 			@items = []
 		end
 
-		attr_reader :name
+		def name
+			@name.to_s.gsub(/_/, ' ').capitalize
+		end
 
 		def [](k)
 			k = k[0] if k.is_a?Array
@@ -22,15 +24,15 @@ module Adventure
 		end
 
 		def to_s
-			s = "#{@name}:\n#{@description}\n"
+			s = "#{name}\n#{@description}\n"
 			if @@show_directions
 				@directions.each do |dir,room|
-					s << "#{dir.to_s.capitalize}, #{room.name.to_s.downcase}. "
+					s << "#{dir.to_s.capitalize}, #{room.name}. "
 				end
 				s << "\n"
 			end
 			@items.each do |item|
-				s << "\nThere is #{item.name.to_s.gsub(/_/,' ')} here."
+				s << "\nThere is #{item.name} here."
 			end
 			s
 		end
@@ -40,18 +42,16 @@ module Adventure
 				when Adventure::Item
 					return @items.includes?(name)
 				else
-					name = resolve name
 					@items.each do |item|
-						return item if item.name == name
+						return item if item === name
 					end
 			end
 			false
 		end
 
 		def get_item(id)
-			id = resolve id
 			@items.each_with_index do |item, idx|
-				if item.name == id
+				if item === id
 					return @items.delete_at(idx)
 				end
 			end
@@ -81,42 +81,36 @@ module Adventure
 			case params
 				when Symbol
 					@directions[params]
-
 				when Hash
-					if $DEBUG
-						params.each do |k,v|
-							raise "Bad direction from room #{@name}, bad type for direction #{k.class}" unless k.is_a?Symbol
-							raise "Bad direction from room #{@name}, bad type for room #{v.class}" unless v.is_a?Adventure::Room
-						end
+					params.each do |k, v|
+						@directions[k] = Adventure::room(v)
 					end
-					@directions.merge!(params)
 				else
 					raise "Bad type for #{self.class}#direction #{params.type}"
 			end
 		end
 	end
 
-	# Reresents a game player
+	# Represents a game player
 	class Player
 		def initialize(name, start)
 			@name = name
-			@current_room = start
+			@current_room = Adventure::room(start)
 			@items = []
 		end
 
 		attr_reader :current_room
+		attr_accessor :name
 
 		def go(room=nil)
 			return 'Go where?' unless room
 			case room
-				when Symbol
-					old_room = @current_room
-					@current_room = @current_room[room]
-					return "No way to go #{room}." if old_room == @current_room || (old_room.respond_to?(:dref) && old_room.dref == @current_room.dref)
 				when Adventure::Room
 					@current_room = room
 				else
-					raise "Bad type for #{self.class}#go #{room.type}"
+					old_room = @current_room
+					@current_room = @current_room[resolve(room)]
+					return "No way to go #{room}." if old_room == @current_room
 			end
 			@current_room
 		end
@@ -139,7 +133,7 @@ module Adventure
 				get_item(item)
 				return "You got #{item.name.to_s.gsub(/_/,' ')}."
 			else
-				return "There is no #{id} here."
+				return "There is no #{id.to_s.gsub(/_/, ' ')} here."
 			end
 		end
 
@@ -155,7 +149,7 @@ module Adventure
 			end
 		end
 
-		def inventory(dummy=nil)
+		def inventory
 			"You are carrying:\n" + (@items.length > 0 ? @items.join("\n") : 'Nothing')
 		end
 
@@ -164,9 +158,9 @@ module Adventure
 				when Adventure::Item
 					return @items.includes?(name)
 				else
-					name = resolve name
+					name = Adventure::resolve(name)
 					@items.each do |item|
-						return item if item.name == name
+						return item if item === name
 					end
 			end
 			false
@@ -205,23 +199,15 @@ module Adventure
 			:d   => :down,
 			:inv => :inventory
 		}
-		@@items = @@synonyms.values
+		@@items = @@synonyms.values.uniq
 		@@stopwords = ['at', 'with', 'on']
 
 		def self.synonyms
 			@@synonyms
 		end
 
-		def self.add_item(item)
-			@@items << resolve(item)
-		end
-
 		def self.add_synonym(synonym, of)
 			@@synonyms[synonym.to_s.downcase.to_sym] = of.to_s.downcase.to_sym
-		end
-
-		def self.items
-			@@items
 		end
 
 		def self.stopwords
@@ -232,18 +218,23 @@ module Adventure
 	# A game item
 	class Item
 		def initialize(name, description, synonyms)
-			@name = resolve name
+			@name = Adventure::resolve(name)
 			@description = description
-			Adventure::Terms::add_item(name)
 			synonyms.each do |synonym|
 				Adventure::Terms::add_synonym(synonym, @name)
 			end
 		end
 
-		attr_reader :name
+		def name
+			@name.to_s.gsub(/_/, ' ')
+		end
+
+		def ===(v)
+			self == v || @name == Adventure::resolve(v)
+		end
 
 		def to_s
-			"#{@name.to_s.capitalize}: #{@description}"
+			"#{name}: #{@description}"
 		end
 	end
 
@@ -274,7 +265,11 @@ module Adventure
 		rtrn = []
 		params.each do |k, v|
 			next unless k
-			rtrn << id.send(k.to_sym, v)
+			begin
+				rtrn << id.send(k.to_sym, *v)
+			rescue Exception
+				rtrn << "I don't understand what you said, sorry."
+			end
 		end
 		rtrn.compact!
 		return rtrn[0] if rtrn.length == 1
@@ -284,12 +279,14 @@ module Adventure
 	end
 
 	# Create or modify a room
-	def room(name='A room', description='', &block)
-		case name
+	@@rooms = {}
+	def room(name, description='', &block)
+		r = case name
 			when Adventure::Room
-				r = name
-			when String
-				r = Adventure::Room.new(name, description)
+				name
+			else
+				name = Adventure::resolve(name)
+				@@rooms[name] ||= Adventure::Room.new(name, description)
 		end
 		r.instance_eval(&block || lambda {})
 		r
@@ -298,7 +295,7 @@ module Adventure
 	# Define new commands
 	def command(cmd, synonyms=[], &block)
 		synonyms.each do |synonym|
-			Adventure::Terms::add_synonym(synonym, resolve(cmd))
+			Adventure::Terms::add_synonym(synonym, Adventure::resolve(cmd))
 		end
 		Adventure::Player.class_eval {
 			define_method(cmd, block)
@@ -318,7 +315,7 @@ module Adventure
 	# Term resolution
 	def resolve(term)
 		return nil unless term
-		term = term.to_s.downcase.to_sym
+		term = term.to_s.downcase.gsub(/\s+/, '_').to_sym
 		Adventure::Terms::synonyms[term] || term
 	end
 
@@ -328,11 +325,11 @@ module Adventure
 		Adventure::Terms::stopwords.each do |word|
 			command.delete(word)
 		end
-		verb = resolve command.shift
-		direct_object = resolve command.shift
+		verb = resolve(command.shift)
+		direct_object = resolve(command.shift)
 		indirect_objects = []
 		command.each do |i|
-			indirect_objects << (resolve(i)) #if Adventure::Terms::items.include?(resolve(i))
+			indirect_objects << resolve(i)
 		end
 		[verb, direct_object, indirect_objects]
 	end

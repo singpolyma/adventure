@@ -6,28 +6,25 @@
 # There are some default commands: go, get, drop
 require 'adventure'
 
-# This is for the ref(:id) syntax
-require 'extern'
-
 # This tells the DSL to print the different ways a player can go.
 show_directions
 
 # Make us a river! There's a pebble there, you can call it a pebble or just pebble.
-@river = room('A river', 'A peaceful river.') {
+room(:a_river, 'A peaceful river.') {
 	item :a_pebble, 'A small, smooth stone.', [:pebble]
-	direction :north => ref(:hill)
-	direction :west => ref(:lake)
+	direction :north => :a_hill
+	direction :west => :the_lake
 }
 
 # Make us a hill! The only thing you can do is go south to the river.
-@hill = room('A hill', 'On top of a hill.') {
-	direction :south => ref(:river)
+room(:a_hill, 'On top of a hill.') {
+	direction :south => :a_river
 }
 
 # Make us a lake! There's food and a knife here... not too exciting.
-@lake = room('The lake', 'Isn\'t this lake awesome!') {
-	direction :east => ref(:river)
-	direction :north => ref(:hill)
+room(:the_lake, 'Isn\'t this lake awesome!') {
+	direction :east => :a_river
+	direction :north => :a_hill
 	item :food, 'Some food.'
 	item :a_knife, 'A sharp knife.', [:knife]
 }
@@ -36,7 +33,7 @@ show_directions
 # You can hit the pebble, but only if you have it.
 command(:hit, [:strike]) { |item|
 	if item
-		if item == :a_pebble
+		if item === :a_pebble
 			if has_item?:a_pebble
 				drop(:a_pebble)
 				room(current_room) {
@@ -69,7 +66,7 @@ command(:help) {
 }
 
 # Start the player at the river.
-player :start => ref(:river)
+player :start => :a_river
 
 # Game interface. Just do the traditional text-based interface.
 
