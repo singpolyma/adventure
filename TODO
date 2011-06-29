@@ -1,0 +1,3 @@
+Commands need more metadata.  They need to be able to say if they are visible to other users, if they are visible in only the current room, and what they say (such as the "say" command which should not relay the verb, etc).
+
+Items need to have actions able to be defined on them so that each command does not need to be aware of all items it might be used on.
