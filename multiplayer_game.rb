@@ -90,6 +90,10 @@ class AdventureServer < EventMachine::Connection
 		send_data("What is your name?\r\n")
 	end
 
+	def unbind
+		broadcast('quit')
+	end
+
 	def broadcast(msg, room=nil)
 		$connections.each do |conn|
 			next if conn == self
@@ -126,7 +130,6 @@ class AdventureServer < EventMachine::Connection
 					verb, direct_object, indirect_objects = parse(@buffer)
 
 					if verb == :quit || verb == :exit
-						broadcast('quit')
 						close_connection
 					else
 						objects = ([direct_object] + indirect_objects).compact
