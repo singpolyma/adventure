@@ -11,11 +11,10 @@ room(:a_river, 'A peaceful river.') {
 	item :a_pebble, 'A small, smooth stone.', [:pebble] {
 		# You can hit the pebble, but only if you have it.
 		command(:hit) {
-			if player.has_item?(self)
-
+			if owner.is_a? Player
 				# Drop and then "get" to nowhere makes it go away
-				player.drop(self)
-				room(player.current_room) {
+				owner.drop(self) # Drop makes the room the owner
+				room(owner) {
 					get_item(self)
 				}
 

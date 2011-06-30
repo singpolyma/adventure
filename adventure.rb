@@ -61,15 +61,17 @@ module Adventure
 		private
 
 		def item(item, description='', synonyms=[], &block)
-			case item
+			i = case item
 				when Adventure::Item
 					@items << item
-					return item
+					item
 				else
 					theitem = Adventure::item(item, description, synonyms, &block)
 					@items << theitem
-					return theitem
+					theitem
 			end
+			i.owner = self
+			i
 		end
 
 		def description(r=nil)
@@ -181,6 +183,7 @@ module Adventure
 
 		def get_item(item)
 			@items << item
+			item.owner = self
 		end
 	end
 
@@ -224,6 +227,8 @@ module Adventure
 				Adventure::Terms::add_synonym(synonym, @name)
 			end
 		end
+
+		attr_accessor :owner
 
 		def self.command(name, synonyms=[], &block)
 			synonyms.each do |synonym|
