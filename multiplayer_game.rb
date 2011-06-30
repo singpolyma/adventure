@@ -62,9 +62,11 @@ command(:help) {
 	end
 }
 
-command(:say) { |*args|
-	''
+command(:say, [:talk], :broadcast => lambda {|*args| args.join(' ')}) { |*args|
+	nil
 }
+
+command(:look, [], :broadcast => false)
 
 # Basic telnet interface
 
@@ -95,15 +97,23 @@ class AdventureServer < EventMachine::Connection
 					@player.name = @buffer
 					$connections << self
 					send_data("\r\n" + @player.current_room.to_s + "\r\n\r\n")
-					broadcast("has joined")
+					broadcast('has joined')
 				else
-					broadcast(@buffer)
 					verb, direct_object, indirect_objects = parse(@buffer)
 
 					if verb == :quit || verb == :exit
+						broadcast('quit')
 						close_connection
 					else
-						send_data("\r\n" + player(@player, verb => ([direct_object] + indirect_objects).compact).to_s + "\r\n\r\n")
+						unless !command(verb) || command(verb)[:broadcast].nil?
+							if command(verb)[:broadcast]
+								broadcast(command(verb)[:broadcast].call(([direct_object] + indirect_objects).compact))
+							end
+						else
+							broadcast(@buffer)
+						end
+						rtrn = player(@player, verb =>              ([direct_object] + indirect_objects).compact)
+						send_data("\r\n" + rtrn.to_s + "\r\n\r\n") unless rtrn.nil?
 					end
 				end
 

@@ -271,11 +271,9 @@ module Adventure
 				rtrn << "I don't understand what you said, sorry."
 			end
 		end
-		rtrn.compact!
-		return rtrn[0] if rtrn.length == 1
-		return rtrn if rtrn.length > 1
 
-		id
+		return rtrn.first if rtrn.length < 2
+		rtrn
 	end
 
 	# Create or modify a room
@@ -293,13 +291,19 @@ module Adventure
 	end
 
 	# Define new commands
-	def command(cmd, synonyms=[], &block)
+	@@commands = {}
+	def command(cmd, synonyms=[], meta={}, &block)
+		cmd = Adventure::resolve(cmd)
+		return @@commands[cmd] if @@commands[cmd]
 		synonyms.each do |synonym|
-			Adventure::Terms::add_synonym(synonym, Adventure::resolve(cmd))
+			Adventure::Terms::add_synonym(synonym, cmd)
 		end
-		Adventure::Player.class_eval {
-			define_method(cmd, block)
-		}
+		@@commands[cmd] = meta
+		if block
+			Adventure::Player.class_eval {
+				define_method(cmd, block)
+			}
+		end
 	end
 
 	# Create an item
