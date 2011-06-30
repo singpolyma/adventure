@@ -142,5 +142,5 @@ class AdventureServer < EventMachine::Connection
 end
 
 EM::run {
-	EventMachine::start_server '0.0.0.0', 4611, AdventureServer
+	EventMachine::start_server '::', 4611, AdventureServer
 }
