@@ -72,6 +72,14 @@ command(:look, [], :broadcast => false)
 
 $connections = []
 
+class Adventure::Room
+	alias to_s_old to_s
+	def to_s
+		people = $connections.map {|c| c.player.name}.join(', ')
+		to_s_old + "\nPeople here: #{people}"
+	end
+end
+
 class AdventureServer < EventMachine::Connection
 
 	attr_reader :player
