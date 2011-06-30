@@ -286,7 +286,7 @@ module Adventure
 				name = Adventure::resolve(name)
 				@@rooms[name] ||= Adventure::Room.new(name, description)
 		end
-		r.instance_eval(&block || lambda {})
+		r.instance_eval(&block) if block
 		r
 	end
 
