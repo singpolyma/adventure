@@ -11,7 +11,23 @@ show_directions
 
 # Make us a river! There's a pebble there, you can call it a pebble or just pebble.
 room(:a_river, 'A peaceful river.') {
-	item :a_pebble, 'A small, smooth stone.', [:pebble]
+	item :a_pebble, 'A small, smooth stone.', [:pebble] {
+		# You can hit the pebble, but only if you have it.
+		command(:hit) {
+			if player.has_item?(self)
+
+				# Drop and then "get" to nowhere makes it go away
+				player.drop(self)
+				room(player.current_room) {
+					get_item(self)
+				}
+
+				'The pebble vanishes.'
+			else
+				'You do not have a pebble.'
+			end
+		}
+	}
 	direction :north => :a_hill
 	direction :west => :the_lake
 }
@@ -29,26 +45,11 @@ room(:the_lake, 'Isn\'t this lake awesome!') {
 	item :a_knife, 'A sharp knife.', [:knife]
 }
 
-# This is the most complicated command.
-# You can hit the pebble, but only if you have it.
-command(:hit, [:strike]) { |item|
-	if item
-		if item === :a_pebble
-			if has_item?:a_pebble
-				drop(:a_pebble)
-				room(current_room) {
-					get_item :a_pebble
-				}
-				'The pebble vanishes.'
-			else
-				'You do not have a pebble.'
-			end
-		else
-			'You can\t hit that.'
-		end
-	else
-		'Hit what?'
-	end
+# This is just the catch-all for if you do not specify
+# something to hit (or what you specify is not there)
+# The synonym set up here will be applied globally
+command(:hit, [:strike]) { |*args|
+	'Hit what?'
 }
 
 # We can make silly commands too.
@@ -76,11 +77,11 @@ puts player.current_room
 catch :quit do
 	loop do
 		puts
-		verb, direct_object, indirect_objects = parse gets
+		verb, objects = parse gets
 		puts
 		throw :quit if verb == :quit
 		throw :quit if verb == :exit
-		puts player(verb => direct_object)
+		puts player(verb => objects)
 	end
 end
 

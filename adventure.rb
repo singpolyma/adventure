@@ -60,13 +60,13 @@ module Adventure
 
 		private
 
-		def item(item, description='', synonyms=[])
+		def item(item, description='', synonyms=[], &block)
 			case item
 				when Adventure::Item
 					@items << item
 					return item
 				else
-					theitem = Adventure::Item.new(item, description, synonyms)
+					theitem = Adventure::item(item, description, synonyms, &block)
 					@items << theitem
 					return theitem
 			end
@@ -121,7 +121,7 @@ module Adventure
 
 		def look(at=nil)
 			if at
-				return has_item?(at) || @current_room.has_item?(at)
+				return has_item?(at) || @current_room.has_item?(at) || 'I don\'t see that.'
 			else
 				return @current_room
 			end
@@ -156,7 +156,7 @@ module Adventure
 		def has_item?(name)
 			case name
 				when Adventure::Item
-					return @items.includes?(name)
+					return @items.include?(name) ? name : false
 				else
 					name = Adventure::resolve(name)
 					@items.each do |item|
@@ -225,6 +225,16 @@ module Adventure
 			end
 		end
 
+		def self.command(name, synonyms=[], &block)
+			synonyms.each do |synonym|
+				Adventure::Terms::add_synonym(synonym, @name)
+			end
+
+			self.class_eval {
+				define_method(name.to_s.downcase.gsub(/\s+/, '_').to_sym, &block)
+			}
+		end
+
 		def name
 			@name.to_s.gsub(/_/, ' ')
 		end
@@ -239,10 +249,11 @@ module Adventure
 	end
 
 	# Send commands to a player
+	@@player = nil # Shortcut for single-player games
 	def player(id=nil, params=nil)
 		if params.nil?
 			params = id
-			id = @player
+			id = @@player
 		end
 
 		return id unless params
@@ -253,7 +264,7 @@ module Adventure
 				id = Adventure::Player.new(id, params[:start])
 			else
 				id = Adventure::Player.new('Player 1', params[:start])
-				@player = id
+				@@player = id
 			end
 			params.delete :start
 		end
@@ -265,8 +276,19 @@ module Adventure
 		rtrn = []
 		params.each do |k, v|
 			next unless k
+			k = k.to_sym
+			v = [v].flatten(1)
 			begin
-				rtrn << id.send(k.to_sym, *v)
+				direct_object = Adventure::resolve(v.first)
+				if (item = id.has_item?(direct_object)) && item.respond_to?(k)
+					v.shift
+					rtrn << item.send(k, *v)
+				elsif (item = id.current_room.has_item?(direct_object)) && item.respond_to?(k)
+					v.shift
+					rtrn << item.send(k, *v)
+				else
+					rtrn << id.send(k.to_sym, *v)
+				end
 			rescue Exception
 				rtrn << "I don't understand what you said, sorry."
 			end
@@ -307,8 +329,14 @@ module Adventure
 	end
 
 	# Create an item
-	def item(name, description, synonyms=[])
-		Adventure::Item.new(name, description, synonyms)
+	def item(name, description, synonyms=[], &block)
+		class_name = name.to_s.gsub(/\s+/, '_').capitalize
+		unless Adventure::Item.const_defined?(class_name)
+			Adventure::Item::const_set(class_name, Class.new(Adventure::Item, &block))
+		else
+			Adventure::Item::const_get(class_name).class_eval &block
+		end
+		Adventure::Item::const_get(class_name).new(name, description, synonyms)
 	end
 
 	# Turn on auto-printing of directions
@@ -329,13 +357,9 @@ module Adventure
 		Adventure::Terms::stopwords.each do |word|
 			command.delete(word)
 		end
-		verb = resolve(command.shift)
-		direct_object = resolve(command.shift)
-		indirect_objects = []
-		command.each do |i|
-			indirect_objects << resolve(i)
-		end
-		[verb, direct_object, indirect_objects]
+		verb = Adventure::resolve(command.shift)
+		objects = command.map { |i| Adventure::resolve(i) }
+		[verb, objects]
 	end
 
 end
