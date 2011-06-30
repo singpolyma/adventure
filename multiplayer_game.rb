@@ -74,16 +74,32 @@ $connections = []
 
 class AdventureServer < EventMachine::Connection
 
+	attr_reader :player
+
 	def post_init
 		@buffer = ''
 		@player = Adventure::Player.new('Anonymous', :a_river)
 		send_data("What is your name?\r\n")
 	end
 
-	def broadcast(msg)
+	def broadcast(msg, room=nil)
 		$connections.each do |conn|
 			next if conn == self
+			if room
+				next unless conn.player.current_room === room
+			end
 			conn.send_data("#{@player.name}: #{msg}\r\n\r\n")
+		end
+	end
+
+	def do_broadcast(verb, objects, second=false)
+		unless !command(verb) || (bcst = command(verb)[:broadcast]).nil?
+			return unless bcst
+			room = command(verb)[:visibility] == :global ? nil : player.current_room
+			return if second && room
+			broadcast(bcst.call(*objects), room)
+		else
+			broadcast(@buffer, player.current_room)
 		end
 	end
 
@@ -105,14 +121,15 @@ class AdventureServer < EventMachine::Connection
 						broadcast('quit')
 						close_connection
 					else
-						unless !command(verb) || command(verb)[:broadcast].nil?
-							if command(verb)[:broadcast]
-								broadcast(command(verb)[:broadcast].call(([direct_object] + indirect_objects).compact))
-							end
-						else
-							broadcast(@buffer)
+						objects = ([direct_object] + indirect_objects).compact
+						do_broadcast(verb, objects)
+
+						old_room = player.current_room
+						rtrn = Adventure::player(player, verb => objects)
+						if old_room != player.current_room
+							do_broadcast(verb, objects, true)
 						end
-						rtrn = player(@player, verb =>              ([direct_object] + indirect_objects).compact)
+
 						send_data("\r\n" + rtrn.to_s + "\r\n\r\n") unless rtrn.nil?
 					end
 				end
