@@ -1,3 +1,1 @@
-Commands need more metadata.  Need to be able to say if they are visible in only the current room
-
 Items need to have actions able to be defined on them so that each command does not need to be aware of all items it might be used on.
